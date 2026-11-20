@@ -1,0 +1,10 @@
+# Archivos que genera Python al ejecutar (no van al repositorio)
+__pycache__/
+*.pyc
+
+# Ranking local de cada jugador
+puntajes.txt
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
