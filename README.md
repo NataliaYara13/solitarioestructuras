@@ -73,9 +73,10 @@ Solitario/
 └── documentacion/           Manual de usuario y manual técnico (PDF)
 ```
 
-Cada clase y cada método está comentado: qué hace, qué recibe, qué devuelve y
-su complejidad. Al inicio de cada archivo de `estructuras/` está la teoría de
-la estructura y su tabla de complejidad.
+Cada clase y cada método está comentado: qué hace, qué recibe y qué devuelve
+(en las estructuras, también su complejidad). Al inicio de cada archivo de
+`estructuras/` está la teoría de la estructura. Las tablas de complejidad de las
+cinco estructuras están en el manual técnico.
 
 ## Documentación
 
