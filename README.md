@@ -7,7 +7,7 @@ datos programadas desde cero con nodos y referencias.
 | | |
 |---|---|
 | **Juego** | Solitario Klondike (robar 1 carta) |
-| **Integrante** | Carlos Andrés Muñoz Ortega |
+| **Integrantes** | Carlos Andrés Muñoz Ortega · Gissell Natalia Yara Valencia |
 | **Programa** | Ingeniería de Software, Corporación Universitaria Autónoma del Cauca |
 | **Lenguaje** | Python 3.10 o superior (probado en Python 3.12 y 3.13) |
 | **Interfaz** | Tkinter (viene incluida con Python, no hay que instalar nada) |
@@ -73,10 +73,9 @@ Solitario/
 └── documentacion/           Manual de usuario y manual técnico (PDF)
 ```
 
-Cada clase y cada método está comentado: qué hace, qué recibe y qué devuelve
-(en las estructuras, también su complejidad). Al inicio de cada archivo de
-`estructuras/` está la teoría de la estructura. Las tablas de complejidad de las
-cinco estructuras están en el manual técnico.
+Cada clase y cada método está comentado: qué hace, qué recibe, qué devuelve y
+su complejidad. Al inicio de cada archivo de `estructuras/` está la teoría de
+la estructura y su tabla de complejidad.
 
 ## Documentación
 
