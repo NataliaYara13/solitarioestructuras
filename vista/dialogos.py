@@ -197,6 +197,8 @@ class DialogoFin(DialogoModal):
         alto = 500 if self._puede_guardar else 400
         if tablero.gano:
             titulo, icono = "¡Ganaste!", "★"
+        elif tablero.tiempo_agotado:
+            titulo, icono = "Se acabó el tiempo", "⏱"
         else:
             titulo, icono = ("Te rendiste" if tablero.rendido else "Fin de la partida"), "✕"
         super().__init__(padre, 500, alto, titulo, icono, resultado_al_cerrar="menu")

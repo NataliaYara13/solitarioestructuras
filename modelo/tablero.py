@@ -45,6 +45,9 @@ FIN DE LA PARTIDA
       partida queda BLOQUEADA (atributo 'bloqueada'). La interfaz avisa y
       ofrece: Deshacer (para intentar otro camino) o Terminar (derrota).
       También se puede perder en cualquier momento con rendirse().
+    - TIEMPO AGOTADO: la partida tiene un límite de 10 minutos
+      (TIEMPO_LIMITE). Al cumplirse, termina como derrota (atributo
+      'tiempo_agotado') y ya no se aceptan jugadas.
 
 PUNTAJE (estilo Windows)
 ------------------------
@@ -75,6 +78,7 @@ PUNTOS_A_FUNDACION = 10
 PUNTOS_DESTAPAR = 5
 PUNTOS_FUNDACION_A_COLUMNA = -15
 BONO_TIEMPO_MAXIMO = 600
+TIEMPO_LIMITE = 600          # 10 minutos por partida
 
 
 class MovimientoInvalido(Exception):
@@ -103,12 +107,14 @@ class Tablero:
         rendido (bool): True si el jugador se rindió (o aceptó la derrota).
         bloqueada (bool): True si no quedan movimientos útiles; la interfaz
             ofrece deshacer o terminar la partida.
+        limite_tiempo (int | None): segundos máximos de la partida; None = sin límite.
+        tiempo_agotado (bool): True si la partida terminó por tiempo.
         _reloj (función): fuente de tiempo (se puede cambiar en las pruebas).
         _inicio (float): momento en que empezó la partida.
         _segundos_finales (int | None): tiempo congelado al terminar.
     """
 
-    def __init__(self, semilla=None, reloj=time.monotonic):
+    def __init__(self, semilla=None, reloj=time.monotonic, limite_tiempo=TIEMPO_LIMITE):
         """
         Crea un tablero y reparte una partida nueva.
 
@@ -116,10 +122,14 @@ class Tablero:
             semilla (int | None): para repetir un barajado concreto.
             reloj (función): devuelve los segundos actuales (por defecto
                 time.monotonic). Las pruebas pasan un reloj falso.
+            limite_tiempo (int | None): segundos máximos de la partida
+                (10 minutos por defecto). None = sin límite (lo usa la
+                repetición, que no debe cortarse por tiempo).
         Devuelve: nada.
         Complejidad: O(n²) por el barajado.
         """
         self._reloj = reloj
+        self.limite_tiempo = limite_tiempo
         self.nueva_partida(semilla)
 
     # ======================================================================
@@ -150,6 +160,7 @@ class Tablero:
         self.gano = False
         self.rendido = False
         self.bloqueada = False
+        self.tiempo_agotado = False
         self._inicio = self._reloj()
         self._segundos_finales = None
         self._repartir(Baraja(semilla).generar_mazo())
@@ -204,6 +215,39 @@ class Tablero:
         if self._segundos_finales is not None:
             return self._segundos_finales
         return int(self._reloj() - self._inicio)
+
+    def tiempo_restante(self):
+        """
+        Segundos que le quedan a la partida antes de agotar el tiempo.
+
+        Recibe: nada.
+        Devuelve:
+            int (nunca negativo), o None si la partida no tiene límite.
+        """
+        if self.limite_tiempo is None:
+            return None
+        return max(0, self.limite_tiempo - self.segundos())
+
+    def revisar_tiempo(self):
+        """
+        Si se cumplió el límite de tiempo, termina la partida como derrota.
+        La interfaz lo llama cada segundo; también se revisa antes de
+        cada jugada (en _validar_en_juego).
+
+        Recibe: nada.
+        Devuelve:
+            True si el tiempo se agotó JUSTO en esta llamada, False si no.
+        Complejidad: O(1).
+        """
+        if self.terminada or self.limite_tiempo is None:
+            return False
+        if self.segundos() < self.limite_tiempo:
+            return False
+        self.tiempo_agotado = True
+        self.bloqueada = False
+        self._terminar(gano=False)
+        self._segundos_finales = self.limite_tiempo    # el reloj queda en 10:00
+        return True
 
     def puntaje_final(self):
         """
@@ -726,7 +770,9 @@ class Tablero:
                 "distinto color y valer uno menos")
 
     def _validar_en_juego(self):
-        """Lanza MovimientoInvalido si la partida ya terminó."""
+        """Lanza MovimientoInvalido si se acabó el tiempo o la partida ya terminó."""
+        if self.revisar_tiempo():
+            raise MovimientoInvalido("Se acabó el tiempo")
         if self.terminada:
             raise MovimientoInvalido("La partida ya terminó")
 

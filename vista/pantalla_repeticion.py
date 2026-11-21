@@ -207,7 +207,7 @@ class PantallaRepeticion(tk.Frame):
         Devuelve: nada.
         """
         paso = max(0, min(self.total, paso))
-        self.tablero = Tablero(self.semilla)
+        self.tablero = Tablero(self.semilla, limite_tiempo=None)   # la repetición no tiene límite
         self.pendientes = self._copiar_registro()
         self.paso = 0
         self._ultima = None

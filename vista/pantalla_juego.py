@@ -26,6 +26,12 @@ FLUJO DE CADA JUGADA
           nada cambia (el juego nunca se cierra).
     Después de cada jugada se revisa si se ganó o si la partida quedó
     bloqueada, para abrir el diálogo correspondiente.
+
+LÍMITE DE TIEMPO
+----------------
+    La barra muestra el tiempo RESTANTE (cuenta regresiva desde 10:00; se
+    pone en rojo en el último minuto). Cada segundo se llama a
+    Tablero.revisar_tiempo(); si se agotó, se abre el diálogo de fin.
 """
 
 import tkinter as tk
@@ -55,6 +61,9 @@ class PantallaJuego(tk.Frame):
         _textos (dict): ids de los textos de tiempo, movimientos y puntos.
         _boton_deshacer (BotonCanvas).
         _tarea_aviso, _tarea_reloj: tareas programadas con after().
+        _en_dialogo (bool): True mientras hay un diálogo de confirmación
+            abierto; el reloj espera a que se cierre para terminar por tiempo.
+        _fin_mostrado (bool): evita abrir dos veces el diálogo de fin.
     """
 
     def __init__(self, padre, app, semilla=None):
@@ -73,6 +82,8 @@ class PantallaJuego(tk.Frame):
         self._ignorar_proximo_clic = False
         self._tarea_aviso = None
         self._tarea_reloj = None
+        self._en_dialogo = False
+        self._fin_mostrado = False
         self.lienzo = tk.Canvas(self, width=e.ANCHO_VENTANA, height=e.ALTO_VENTANA,
                                 bg=e.COLOR_MESA, highlightthickness=0)
         self.lienzo.pack(fill="both", expand=True)
@@ -98,7 +109,7 @@ class PantallaJuego(tk.Frame):
                             outline="", tags=("barra",))
         self._textos = {}
         x = 22
-        for clave, etiqueta in (("tiempo", "Tiempo"), ("movimientos", "Movimientos"),
+        for clave, etiqueta in (("tiempo", "Tiempo restante"), ("movimientos", "Movimientos"),
                                 ("puntos", "Puntos")):
             cv.create_text(x, 15, text=etiqueta, anchor="w", fill=e.COLOR_TEXTO_SUAVE,
                            font=(e.FUENTE_UI, 9), tags=("barra",))
@@ -127,22 +138,29 @@ class PantallaJuego(tk.Frame):
         Devuelve: nada.
         """
         t = self.tablero
-        segundos = t.segundos()
+        restante = t.tiempo_restante()
+        segundos = t.segundos() if restante is None else restante
+        color = e.COLOR_PELIGRO if restante is not None and restante <= 60 else e.COLOR_TEXTO
         cv = self.lienzo
-        cv.itemconfigure(self._textos["tiempo"], text=f"{segundos // 60:02d}:{segundos % 60:02d}")
+        cv.itemconfigure(self._textos["tiempo"], text=f"{segundos // 60:02d}:{segundos % 60:02d}",
+                         fill=color)
         cv.itemconfigure(self._textos["movimientos"], text=str(t.movimientos))
         cv.itemconfigure(self._textos["puntos"], text=str(max(0, t.puntos)))
         self._boton_deshacer.habilitar(t.puede_deshacer())
 
     def _tick_reloj(self):
         """
-        Actualiza el reloj cada segundo mientras la partida siga.
-        Se reprograma a sí mismo con after().
+        Actualiza el reloj cada segundo mientras la partida siga y revisa
+        si se acabó el tiempo. Se reprograma a sí mismo con after().
 
         Recibe: nada.
         Devuelve: nada.
         """
         if not self.winfo_exists():
+            return
+        if not self._en_dialogo and self.tablero.revisar_tiempo():
+            self.seleccion = None
+            self._fin_de_partida()
             return
         self._actualizar_barra()
         if not self.tablero.terminada:
@@ -359,8 +377,12 @@ class PantallaJuego(tk.Frame):
         try:
             metodo(*argumentos)
         except MovimientoInvalido as error:
-            self.redibujar()
-            self.aviso(str(error))
+            if self.tablero.tiempo_agotado:
+                self.seleccion = None
+                self._fin_de_partida()
+            else:
+                self.redibujar()
+                self.aviso(str(error))
             return False
         self._quitar_aviso()
         self.redibujar()
@@ -380,12 +402,13 @@ class PantallaJuego(tk.Frame):
         if self.tablero.terminada:
             self._fin_de_partida()
         elif self.tablero.bloqueada:
+            self._en_dialogo = True
             opcion = dialogo_bloqueada(self.app)
+            self._en_dialogo = False
             if opcion == "deshacer":
                 self.deshacer()
             elif opcion == "terminar":
-                self.tablero.rendirse()
-                self._fin_de_partida()
+                self._terminar_como_derrota()
             else:
                 self.aviso("Sin movimientos útiles: deshaz o ríndete", "info", fijo=True)
 
@@ -396,6 +419,9 @@ class PantallaJuego(tk.Frame):
         Recibe: nada.
         Devuelve: nada.
         """
+        if self._fin_mostrado:
+            return
+        self._fin_mostrado = True
         self.redibujar()
         dialogo = DialogoFin(self.app, self.tablero, self.app.gestor)
         opcion = dialogo.esperar()
@@ -430,19 +456,41 @@ class PantallaJuego(tk.Frame):
         """Pide confirmación y termina la partida como derrota."""
         if self.tablero.terminada:
             return
-        if confirmar(self.app, "Rendirse", "¿Seguro que quieres rendirte?\n"
-                                           "La partida terminará como derrota.",
-                     "Rendirme", "Seguir jugando", peligro=True):
+        self._en_dialogo = True
+        acepta = confirmar(self.app, "Rendirse", "¿Seguro que quieres rendirte?\n"
+                                                 "La partida terminará como derrota.",
+                           "Rendirme", "Seguir jugando", peligro=True)
+        self._en_dialogo = False
+        if acepta:
+            self._terminar_como_derrota()
+
+    def _terminar_como_derrota(self):
+        """
+        Termina la partida como derrota y muestra el diálogo de fin.
+        Si mientras tanto se acabó el tiempo, la partida ya terminó por
+        tiempo y solo se muestra el diálogo.
+
+        Recibe: nada.
+        Devuelve: nada.
+        """
+        try:
             self.tablero.rendirse()
-            self._fin_de_partida()
+        except MovimientoInvalido:
+            pass                     # ya había terminado (por tiempo)
+        self._fin_de_partida()
 
     def volver_al_menu(self):
         """Vuelve al menú (pide confirmación si la partida está en curso)."""
         en_curso = not self.tablero.terminada and self.tablero.movimientos > 0
-        if not en_curso or confirmar(self.app, "Volver al menú",
-                                     "¿Abandonar la partida actual?\nSe perderá el progreso.",
-                                     "Abandonar", "Seguir jugando", peligro=True):
-            self.app.mostrar_menu()
+        if en_curso:
+            self._en_dialogo = True
+            abandona = confirmar(self.app, "Volver al menú",
+                                 "¿Abandonar la partida actual?\nSe perderá el progreso.",
+                                 "Abandonar", "Seguir jugando", peligro=True)
+            self._en_dialogo = False
+            if not abandona:
+                return
+        self.app.mostrar_menu()
 
     def robar(self):
         """Roba una carta (atajo de teclado)."""
